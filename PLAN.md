@@ -123,7 +123,7 @@ Two ways to access data, chosen from what the header says:
 - [x] URL parameter `?src=` to open any CORS-enabled JP2. **Works against stacks.stanford.edu today with no server changes**
 
 ## Phase 7: Test images (Kakadu)
-- [ ] Get a large source image (at least 30k×30k, for example a pathology slide or aerial mosaic) and keep the Stanford file as the "existing" baseline
+- [x] Large archive sample: `kp368nb7707_0001.jp2`, a 1.2 GB piano roll (4096×252840, Kakadu 7.1, untiled, RPCL, 13 layers, 1.49 MB of PLT, 975k packets). Keep the 6000×4000 Stanford file as the small baseline
 - [ ] Encode a matrix of variants, all with `ORGgen_plt=yes ORGgen_tlm=… ORGtparts=R Corder=RPCL`:
   - [x] Classic J2K, tiled `Stiles={1024,1024}`
   - [x] Classic J2K, tiled `Stiles={512,512}`
@@ -156,6 +156,17 @@ Two ways to access data, chosen from what the header says:
 - [ ] CI: build the Rust/WASM and web code, run unit tests, and run a Playwright smoke test on a small fixture
 
 - [x] Stacks server recommendations: `docs/stacks-recommendations.md`
+
+## Phase 2b: Very large untiled files (from the piano roll)
+- [x] Opening: 8 requests, 2 MB (header + PLT), about 1.1–1.7 s against Stacks
+- [x] Packet index in typed arrays, with no allocation per packet (`forEachPacket`)
+- [x] **Level dropping** (`web/src/jp2/rewrite.ts`): synthesize the codestream on the reduced canvas with NL−d levels (SIZ, COD/COC, QCD/QCC rewritten) and reuse the packets unchanged. Needed because j2k allocates coefficients for the full-resolution tile even when skipping levels. Used by both access paths
+- [x] **Virtual tiles** for untiled files: crop to a window around the region, aligned to every kept resolution's precinct grid, with a wavelet-support margin of 2^(levels+3)
+- [x] Matches `kdu_expand -region` within ±1 at reductions 0–5, including regions at window boundaries and at the end of the image (`web/test/kakadu.test.ts`)
+- [x] Vendored j2k with a one-line patch raising the decode budget to 1.5 GiB (`wasm/patches/`). Full-resolution windows in this file are 4096×4096 to 4096×8192 because of its 128-px precincts at 1/32 resolution (4096 rows), peaking at about 430 MB natively
+- [x] Large decodes (> 8 M samples) go to one dedicated worker, so only one WASM instance grows
+- [ ] Upstream to j2k: allocate coefficient storage only for kept resolutions and the region of interest. That would remove the budget patch and the large-worker workaround
+- [ ] Viewer: a larger OSD tile at the finest level for untiled files, to amortize the 4096-wide window per decode
 
 ## Open questions / risks
 - Does j2k build for wasm32 as-is, and does it decode the synthesized codestreams (with empty packets) correctly?
