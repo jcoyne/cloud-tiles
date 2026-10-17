@@ -165,7 +165,8 @@ Two ways to access data, chosen from what the header says:
 - [x] Matches `kdu_expand -region` within ±1 at reductions 0–5, including regions at window boundaries and at the end of the image (`web/test/kakadu.test.ts`)
 - [x] Vendored j2k with a one-line patch raising the decode budget to 1.5 GiB (`wasm/patches/`). Full-resolution windows in this file are 4096×4096 to 4096×8192 because of its 128-px precincts at 1/32 resolution (4096 rows), peaking at about 430 MB natively
 - [x] Large decodes (> 8 M samples) go to one dedicated worker, so only one WASM instance grows
-- [ ] Upstream to j2k: allocate coefficient storage only for kept resolutions and the region of interest. That would remove the budget patch and the large-worker workaround
+- [ ] Upstream j2k, region-sized memory: covered by open PRs [#129](https://github.com/frames-sg/j2k/pull/129) (coefficients sized to the ROI) and [#131](https://github.com/frames-sg/j2k/pull/131) (build/parse only the needed precincts), with [#133](https://github.com/frames-sg/j2k/issues/133) proposing line-based decode. With #131, our windowed piano-roll decodes fit the stock 512 MB budget at **9–50 MB peak RSS**, down from 222–1,043 MB. Once merged: re-pin, drop `wasm/patches/0001-raise-decode-budget.patch` and the dedicated large worker
+- [ ] Upstream j2k, [#134](https://github.com/frames-sg/j2k/issues/134): `MAX_J2K_IMAGE_DIMENSION` (60,000 px) rejects the 4096×252840 roll at SIZ parse time. Until that's lifted, the virtual-tile windowing is required, not just a memory optimization
 - [ ] Viewer: a larger OSD tile at the finest level for untiled files, to amortize the 4096-wide window per decode
 
 ## Open questions / risks
