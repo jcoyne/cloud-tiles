@@ -126,9 +126,12 @@ export class HttpRangeSource implements ByteSource {
   private async fetchRange(start: number, end: number, signal?: AbortSignal): Promise<void> {
     await this.acquire();
     try {
-      const headers: Record<string, string> = { Range: `bytes=${start}-${end - 1}` };
-      if (this.etag && !this.etag.startsWith("W/")) headers["If-Range"] = this.etag;
-      const res = await this.fetchFn(this.url, { headers, signal });
+      // Only a single "bytes=a-b" Range is CORS-safelisted, so avoid If-Range
+      // (it would force a preflight) and compare ETags on responses instead.
+      const res = await this.fetchFn(this.url, { headers: { Range: `bytes=${start}-${end - 1}` }, signal });
+      const etag = res.headers.get("ETag");
+      if (etag && this.etag && etag !== this.etag) throw new Error(`${this.url} changed while being read`);
+      if (etag) this.etag = etag;
       if (res.status === 200) {
         // Server ignored Range: cache the whole body.
         const data = new Uint8Array(await res.arrayBuffer());
@@ -142,7 +145,6 @@ export class HttpRangeSource implements ByteSource {
       const m = cr && /bytes (\d+)-(\d+)\/(\d+|\*)/.exec(cr);
       if (!m) throw new Error("206 response without a readable Content-Range (is it exposed via CORS?)");
       if (m[3] !== "*") this.total = Number(m[3]);
-      this.etag ??= res.headers.get("ETag");
       const data = new Uint8Array(await res.arrayBuffer());
       this.count(data.length);
       this.insert(Number(m[1]), data);

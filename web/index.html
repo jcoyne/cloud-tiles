@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>cloud-tiles</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <header>
+      <form id="open">
+        <input id="src" name="src" type="url" placeholder="URL of a JP2 / JPH file (CORS + Range)" required />
+        <select id="samples" aria-label="Samples"></select>
+        <button type="submit">Open</button>
+      </form>
+    </header>
+    <main>
+      <div id="viewer"></div>
+      <aside id="hud" aria-live="polite"></aside>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
