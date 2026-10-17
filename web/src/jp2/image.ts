@@ -16,7 +16,8 @@
 
 import { NeedMoreData, parseFileLayout, type FileLayout } from "./boxes";
 import { Marker, parseMainHeader, parseTilePartHeader, type MainHeader, type TilePartHeader } from "./codestream";
-import { ceilDiv, intersects, packetOrder, precinctRect, resolution, tileRect, type PacketId, type Rect } from "./geometry";
+import { rewriteMainHeader, rewrittenHeader, type SizFields } from "./rewrite";
+import { ceilDiv, forEachPacket, intersects, precinctRect, resolution, tileRect, type Rect } from "./geometry";
 
 export interface ByteSource {
   /** Total size in bytes. */
@@ -43,6 +44,8 @@ export interface DecodePlan {
   build(read: (start: number, end: number) => Uint8Array): Uint8Array;
   /** Region to decode within the synthesized image at `reduction`. */
   region: Region;
+  /** Samples per component the decoder works on (drives its memory use). */
+  pixels: number;
 }
 
 interface TilePart {
@@ -54,10 +57,11 @@ interface TilePart {
 }
 
 interface PacketIndex {
-  ids: PacketId[];
   /** Absolute byte offsets / lengths, in codestream order. */
   offsets: Float64Array;
   lengths: Uint32Array;
+  /** seq[c][r][p * layers + l] = position of that packet in codestream order. */
+  seq: Int32Array[][];
 }
 
 const INITIAL_READ = 64 * 1024;
@@ -229,10 +233,21 @@ export class Jp2Image {
     if (tphs.some((t) => t.segments.some((s) => s.marker === Marker.PPT || s.marker === Marker.POC || s.marker === Marker.COD || s.marker === Marker.COC))) {
       return null;
     }
-    const ids = packetOrder(h, 0);
-    const total = tphs.reduce((n, t) => n + t.packetLengths!.length, 0);
-    if (total !== ids.length) {
-      console.warn(`PLT lists ${total} packets but geometry predicts ${ids.length}; using tile access`);
+    const tile = tileRect(h, 0);
+    const layers = h.cod.layers;
+    const seq = h.components.map((coding, c) =>
+      Array.from({ length: coding.levels + 1 }, (_, r) => {
+        const res = resolution(h, tile, c, r);
+        return new Int32Array(res.pw * res.ph * layers);
+      }),
+    );
+    let n = 0;
+    forEachPacket(h, tile, (r, c, p, l) => {
+      seq[c][r][p * layers + l] = n++;
+    });
+    const total = tphs.reduce((sum, t) => sum + t.packetLengths!.length, 0);
+    if (total !== n) {
+      console.warn(`PLT lists ${total} packets but geometry predicts ${n}; using tile access`);
       return null;
     }
     const offsets = new Float64Array(total);
@@ -246,7 +261,7 @@ export class Jp2Image {
         at += len;
       }
     }
-    return { ids, offsets, lengths };
+    return { offsets, lengths, seq };
   }
 
   /** Plan decoding `region` (reduced-image pixels) after dropping `d` levels. */
@@ -255,6 +270,12 @@ export class Jp2Image {
     return this.packets ? this.planPrecincts(d, region) : this.planTiles(d, region);
   }
 
+  /**
+   * Multi-tile access: crop the image to the tiles the region touches and
+   * renumber them. When tile-parts are split by resolution and the tile size
+   * is divisible by 2^d, also drop the d unused levels so the decoder works
+   * at the reduced size; otherwise let the decoder discard them.
+   */
   private planTiles(d: number, region: Region): DecodePlan {
     const h = this.header;
     const s = h.siz;
@@ -282,15 +303,34 @@ export class Jp2Image {
       const j = Math.floor(tp.tile / s.numXTiles);
       return i >= i0 && i < i1 && j >= j0 && j < j1 && (!this.partsByResolution || tp.partIndex <= keepRes);
     });
-    const newX0 = Math.max(s.xosiz, s.xtosiz + i0 * s.xtsiz);
-    const newY0 = Math.max(s.yosiz, s.ytosiz + j0 * s.ytsiz);
-    const newX1 = Math.min(s.xsiz, s.xtosiz + i1 * s.xtsiz);
-    const newY1 = Math.min(s.ysiz, s.ytosiz + j1 * s.ytsiz);
+    const crop: SizFields = {
+      xsiz: Math.min(s.xsiz, s.xtosiz + i1 * s.xtsiz),
+      ysiz: Math.min(s.ysiz, s.ytosiz + j1 * s.ytsiz),
+      xosiz: Math.max(s.xosiz, s.xtosiz + i0 * s.xtsiz),
+      yosiz: Math.max(s.yosiz, s.ytosiz + j0 * s.ytsiz),
+      xtsiz: s.xtsiz,
+      ytsiz: s.ytsiz,
+      xtosiz: s.xtosiz + i0 * s.xtsiz,
+      ytosiz: s.ytosiz + j0 * s.ytsiz,
+    };
+    const drop = d > 0 && this.partsByResolution && s.xtsiz % k === 0 && s.ytsiz % k === 0 ? d : 0;
+    const siz: SizFields = drop
+      ? {
+          xsiz: ceilDiv(crop.xsiz, k),
+          ysiz: ceilDiv(crop.ysiz, k),
+          xosiz: ceilDiv(crop.xosiz, k),
+          yosiz: ceilDiv(crop.yosiz, k),
+          xtsiz: s.xtsiz / k,
+          ytsiz: s.ytsiz / k,
+          xtosiz: ceilDiv(crop.xtosiz, k),
+          ytosiz: ceilDiv(crop.ytosiz, k),
+        }
+      : crop;
     const nx = i1 - i0;
     const partCount = this.partsByResolution ? keepRes + 1 : 0;
 
     const build = (read: (start: number, end: number) => Uint8Array): Uint8Array => {
-      const chunks: Uint8Array[] = [this.mainHeaderWithSiz(newX1, newY1, newX0, newY0, s.xtosiz + i0 * s.xtsiz, s.ytosiz + j0 * s.ytsiz)];
+      const chunks: Uint8Array[] = [rewriteMainHeader(h, this.headerBytes, siz, drop)];
       for (const tp of parts) {
         const bytes = read(tp.offset, tp.offset + tp.length).slice();
         const i = tp.tile % s.numXTiles;
@@ -302,67 +342,115 @@ export class Jp2Image {
       chunks.push(new Uint8Array([0xff, 0xd9]));
       return concat(chunks);
     };
-    const cx = ceilDiv(newX0, k);
-    const cy = ceilDiv(newY0, k);
+    const reduction = d - drop;
+    const kk = 2 ** reduction;
     return {
-      reduction: d,
+      reduction,
       ranges: coalesce(parts.map((p) => [p.offset, p.offset + p.length])),
       build,
-      region: { x: want.x0 - cx, y: want.y0 - cy, w: region.w, h: region.h },
+      region: { x: want.x0 - ceilDiv(siz.xosiz, kk), y: want.y0 - ceilDiv(siz.yosiz, kk), w: region.w, h: region.h },
+      pixels: (siz.xsiz - siz.xosiz) * (siz.ysiz - siz.yosiz),
     };
   }
 
+  /**
+   * Untiled access. The decoder is given a virtual tile: a codestream whose
+   * reference grid is the reduced canvas cropped to a window around the
+   * region, with the d unused levels dropped. The window is aligned to every
+   * kept resolution's precinct grid, so all precincts and code-blocks inside
+   * it are unchanged and the original packets can be reused as-is, and it
+   * keeps a margin so boundary extension at its edges cannot reach the
+   * region. Packets of precincts the region doesn't need become empty packets.
+   */
   private planPrecincts(d: number, region: Region): DecodePlan {
     const h = this.header;
     const s = h.siz;
     const pk = this.packets!;
+    const layers = h.cod.layers;
     const k = 2 ** d;
-    // Region on the reference grid.
-    const ref: Rect = {
-      x0: (ceilDiv(s.xosiz, k) + region.x) * k,
-      y0: (ceilDiv(s.yosiz, k) + region.y) * k,
-      x1: (ceilDiv(s.xosiz, k) + region.x + region.w) * k,
-      y1: (ceilDiv(s.yosiz, k) + region.y + region.h) * k,
+    // Everything below is in reduced canvas coordinates.
+    const ox = ceilDiv(s.xosiz, k);
+    const oy = ceilDiv(s.yosiz, k);
+    const want: Rect = { x0: ox + region.x, y0: oy + region.y, x1: ox + region.x + region.w, y1: oy + region.y + region.h };
+    const fullTile = tileRect(h, 0);
+    const tile: Rect = { x0: ceilDiv(fullTile.x0, k), y0: ceilDiv(fullTile.y0, k), x1: ceilDiv(fullTile.x1, k), y1: ceilDiv(fullTile.y1, k) };
+
+    const kept = h.components.map((coding) => coding.levels - d);
+    let ax = 1;
+    let ay = 1;
+    h.components.forEach((coding, c) => {
+      for (let r = 0; r <= kept[c]; r++) {
+        const { ppx, ppy } = coding.precincts[r];
+        ax = Math.max(ax, s.components[c].xrsiz * 2 ** (kept[c] - r + ppx));
+        ay = Math.max(ay, s.components[c].yrsiz * 2 ** (kept[c] - r + ppy));
+      }
+    });
+    // Wavelet boundary effects reach about 4 * 2^(levels+1) samples inward;
+    // the window is the aligned hull of the region grown by that much.
+    const support = 2 ** (Math.max(...kept) + 3);
+    const win: Rect = {
+      x0: Math.max(tile.x0, Math.floor((want.x0 - support) / ax) * ax),
+      y0: Math.max(tile.y0, Math.floor((want.y0 - support) / ay) * ay),
+      x1: Math.min(tile.x1, Math.ceil((want.x1 + support) / ax) * ax),
+      y1: Math.min(tile.y1, Math.ceil((want.y1 + support) / ay) * ay),
     };
-    const tile = tileRect(h, 0);
-    // needed[c][r] = set of precinct indices.
-    const needed: Set<number>[][] = h.components.map((coding, c) => {
+    const siz: SizFields = {
+      xsiz: win.x1,
+      ysiz: win.y1,
+      xosiz: win.x0,
+      yosiz: win.y0,
+      xtsiz: win.x1 - win.x0,
+      ytsiz: win.y1 - win.y0,
+      xtosiz: win.x0,
+      ytosiz: win.y0,
+    };
+    const winHeader = rewrittenHeader(h, siz, d);
+
+    // Per (component, resolution): needed precincts (original indices) and
+    // the map from window precinct index to original precinct index.
+    // Resolution coordinates are identical in both codestreams.
+    const needed: Set<number>[][] = [];
+    const remap: ((p: number) => number)[][] = [];
+    h.components.forEach((_, c) => {
       const comp = s.components[c];
-      const out: Set<number>[] = [];
-      for (let r = 0; r <= coding.levels - d; r++) {
-        const res = resolution(h, tile, c, r);
-        const scale = 2 ** (coding.levels - r);
-        const want: Rect = {
-          x0: Math.floor(Math.ceil(ref.x0 / comp.xrsiz) / scale) - PRECINCT_MARGIN,
-          y0: Math.floor(Math.ceil(ref.y0 / comp.yrsiz) / scale) - PRECINCT_MARGIN,
-          x1: Math.ceil(Math.ceil(ref.x1 / comp.xrsiz) / scale) + PRECINCT_MARGIN,
-          y1: Math.ceil(Math.ceil(ref.y1 / comp.yrsiz) / scale) + PRECINCT_MARGIN,
+      needed.push([]);
+      remap.push([]);
+      for (let r = 0; r <= kept[c]; r++) {
+        const res = resolution(h, fullTile, c, r);
+        const wres = resolution(winHeader, win, c, r);
+        const di = Math.floor(wres.rect.x0 / 2 ** res.ppx) - Math.floor(res.rect.x0 / 2 ** res.ppx);
+        const dj = Math.floor(wres.rect.y0 / 2 ** res.ppy) - Math.floor(res.rect.y0 / 2 ** res.ppy);
+        remap[c].push((p) => (p % wres.pw) + di + (Math.floor(p / wres.pw) + dj) * res.pw);
+        const scale = 2 ** (kept[c] - r);
+        const area: Rect = {
+          x0: Math.floor(Math.ceil(want.x0 / comp.xrsiz) / scale) - PRECINCT_MARGIN,
+          y0: Math.floor(Math.ceil(want.y0 / comp.yrsiz) / scale) - PRECINCT_MARGIN,
+          x1: Math.ceil(Math.ceil(want.x1 / comp.xrsiz) / scale) + PRECINCT_MARGIN,
+          y1: Math.ceil(Math.ceil(want.y1 / comp.yrsiz) / scale) + PRECINCT_MARGIN,
         };
         const set = new Set<number>();
-        for (let p = 0; p < res.pw * res.ph; p++) if (intersects(precinctRect(res, p), want)) set.add(p);
-        out.push(set);
+        for (let p = 0; p < res.pw * res.ph; p++) if (intersects(precinctRect(res, p), area)) set.add(p);
+        needed[c].push(set);
       }
-      return out;
     });
-    const keep = (id: PacketId) => id.r < needed[id.c].length && needed[id.c][id.r].has(id.p);
 
-    // In resolution-major orders everything after the last kept resolution can be cut.
-    let last = pk.ids.length - 1;
-    if (h.cod.progression === "RPCL" || h.cod.progression === "RLCP") {
-      const maxR = Math.max(...needed.map((n) => n.length - 1));
-      while (last >= 0 && pk.ids[last].r > maxR) last--;
-    }
+    // The window's packet sequence: original packet index, or -1 for empty.
+    const entries: number[] = [];
+    forEachPacket(winHeader, win, (r, c, p, l) => {
+      const orig = remap[c][r](p);
+      entries.push(needed[c][r].has(orig) ? pk.seq[c][r][orig * layers + l] : -1);
+    });
 
     const ranges: ByteRange[] = [];
-    for (let i = 0; i <= last; i++) {
-      if (keep(pk.ids[i]) && pk.lengths[i] > 0) ranges.push([pk.offsets[i], pk.offsets[i] + pk.lengths[i]]);
+    for (const e of entries) {
+      if (e >= 0 && pk.lengths[e] > 0) ranges.push([pk.offsets[e], pk.offsets[e] + pk.lengths[e]]);
     }
     const sop = h.cod.sop;
     const eph = h.cod.eph;
     const tph = this.tilePartHeaders![0];
 
     const build = (read: (start: number, end: number) => Uint8Array): Uint8Array => {
-      const chunks: Uint8Array[] = [this.mainHeaderWithSiz()];
+      const chunks: Uint8Array[] = [rewriteMainHeader(h, this.headerBytes, siz, d)];
       const sot = new Uint8Array(12);
       chunks.push(sot);
       let size = 12;
@@ -375,10 +463,10 @@ export class Jp2Image {
       }
       chunks.push(new Uint8Array([0xff, 0x93]));
       size += 2;
-      for (let i = 0; i <= last; i++) {
+      entries.forEach((e, i) => {
         let b: Uint8Array;
-        if (keep(pk.ids[i])) {
-          b = read(pk.offsets[i], pk.offsets[i] + pk.lengths[i]);
+        if (e >= 0) {
+          b = read(pk.offsets[e], pk.offsets[e] + pk.lengths[e]);
         } else {
           b = new Uint8Array((sop ? 6 : 0) + 1 + (eph ? 2 : 0));
           if (sop) b.set([0xff, 0x91, 0x00, 0x04, (i >> 8) & 0xff, i & 0xff]);
@@ -386,7 +474,7 @@ export class Jp2Image {
         }
         chunks.push(b);
         size += b.length;
-      }
+      });
       u16(sot, 0, Marker.SOT);
       u16(sot, 2, 10);
       u16(sot, 4, 0);
@@ -396,33 +484,12 @@ export class Jp2Image {
       chunks.push(new Uint8Array([0xff, 0xd9]));
       return concat(chunks);
     };
-    return { reduction: d, ranges: coalesce(ranges, 0), build, region };
-  }
-
-  /** SOC + main header without TLM/PLM, optionally with a rewritten image/tile origin. */
-  private mainHeaderWithSiz(
-    xsiz?: number,
-    ysiz?: number,
-    xosiz?: number,
-    yosiz?: number,
-    xtosiz?: number,
-    ytosiz?: number,
-  ): Uint8Array {
-    const parts: Uint8Array[] = [this.headerBytes.subarray(0, 2)];
-    for (const seg of this.header.segments) {
-      if (seg.marker === Marker.TLM || seg.marker === Marker.PLM) continue;
-      let b = this.headerBytes.subarray(seg.offset, seg.offset + seg.size);
-      if (seg.marker === Marker.SIZ && xsiz !== undefined) {
-        b = b.slice();
-        u32(b, 6, xsiz);
-        u32(b, 10, ysiz!);
-        u32(b, 14, xosiz!);
-        u32(b, 18, yosiz!);
-        u32(b, 30, xtosiz!);
-        u32(b, 34, ytosiz!);
-      }
-      parts.push(b);
-    }
-    return concat(parts);
+    return {
+      reduction: 0,
+      ranges: coalesce(ranges, 0),
+      build,
+      region: { x: want.x0 - win.x0, y: want.y0 - win.y0, w: region.w, h: region.h },
+      pixels: (win.x1 - win.x0) * (win.y1 - win.y0),
+    };
   }
 }

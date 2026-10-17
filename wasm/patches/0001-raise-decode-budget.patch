@@ -1,0 +1,13 @@
+diff --git i/crates/j2k-types/src/decode_plan/mod.rs w/crates/j2k-types/src/decode_plan/mod.rs
+index 6d9d2406..428cbf60 100644
+--- i/crates/j2k-types/src/decode_plan/mod.rs
++++ w/crates/j2k-types/src/decode_plan/mod.rs
+@@ -16,7 +16,7 @@ pub use referenced::{
+ };
+ 
+ /// Default maximum simultaneously retained codec allocation in bytes.
+-pub const DEFAULT_MAX_CODEC_BYTES: usize = 512 * 1024 * 1024;
++pub const DEFAULT_MAX_CODEC_BYTES: usize = 1536 * 1024 * 1024;
+ 
+ /// Default maximum retained decode allocation in bytes.
+ pub const DEFAULT_MAX_DECODE_BYTES: usize = DEFAULT_MAX_CODEC_BYTES;

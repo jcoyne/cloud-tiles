@@ -6,6 +6,7 @@ import { createJp2TileSource, type TileStats } from "./viewer/tile-source";
 
 const SAMPLES: [label: string, url: string][] = [
   ["Stanford stacks: archive JP2 (remote)", "https://stacks.stanford.edu/file/bb002wb0348/PC0170_s3_Army_2014-09-13_122754_0529.jp2"],
+  ["Stanford stacks: 1.2 GB piano roll (remote)", "https://stacks.stanford.edu/file/kp368nb7707/kp368nb7707_0001.jp2"],
   ["Local: archive JP2 (untiled, PLT)", "/testdata/stanford-army.jp2"],
   ["Local: tiled 1024 HTJ2K", "/testdata/stanford-army-t1024-ht.jph"],
   ["Local: tiled 512 HTJ2K", "/testdata/stanford-army-t512-ht.jph"],
@@ -35,6 +36,9 @@ const viewer = OpenSeadragon({
   maxZoomPixelRatio: 2,
   timeout: 60_000,
 });
+
+// Exposed for scripted testing (scripts/screenshot.mjs).
+(window as unknown as { viewer: OpenSeadragon.Viewer }).viewer = viewer;
 
 const fmtBytes = (n: number) =>
   n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(2)} MB`;

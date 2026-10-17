@@ -101,12 +101,24 @@ export interface PacketId {
   l: number;
 }
 
-/**
- * All packets of one tile, in codestream order. The position-driven orders
- * (RPCL, PCRL, CPRL) follow B.12.1.3-5 including non-power-of-two offsets.
- */
+/** All packets of one tile, in codestream order. */
 export function packetOrder(h: MainHeader, tileIndex: number, progression: Progression = h.cod.progression): PacketId[] {
-  const tile = tileRect(h, tileIndex);
+  const out: PacketId[] = [];
+  forEachPacket(h, tileRect(h, tileIndex), (r, c, p, l) => out.push({ r, c, p, l }), progression);
+  return out;
+}
+
+/**
+ * Visit the packets of the tile covering `tile` in codestream order without
+ * allocating per packet. The position-driven orders (RPCL, PCRL, CPRL) follow
+ * B.12.1.3-5 including non-power-of-two offsets.
+ */
+export function forEachPacket(
+  h: MainHeader,
+  tile: Rect,
+  visit: (r: number, c: number, p: number, l: number) => void,
+  progression: Progression = h.cod.progression,
+): void {
   const ncomp = h.siz.components.length;
   const layers = h.cod.layers;
   const res: Resolution[][] = [];
@@ -116,7 +128,6 @@ export function packetOrder(h: MainHeader, tileIndex: number, progression: Progr
     res.push(list);
   }
   const maxRes = Math.max(...res.map((l) => l.length));
-  const out: PacketId[] = [];
   const precinctCount = (c: number, r: number) => res[c][r].pw * res[c][r].ph;
 
   switch (progression) {
@@ -124,14 +135,14 @@ export function packetOrder(h: MainHeader, tileIndex: number, progression: Progr
       for (let l = 0; l < layers; l++)
         for (let r = 0; r < maxRes; r++)
           for (let c = 0; c < ncomp; c++)
-            if (r < res[c].length) for (let p = 0; p < precinctCount(c, r); p++) out.push({ r, c, p, l });
-      return out;
+            if (r < res[c].length) for (let p = 0; p < precinctCount(c, r); p++) visit(r, c, p, l);
+      return;
     case "RLCP":
       for (let r = 0; r < maxRes; r++)
         for (let l = 0; l < layers; l++)
           for (let c = 0; c < ncomp; c++)
-            if (r < res[c].length) for (let p = 0; p < precinctCount(c, r); p++) out.push({ r, c, p, l });
-      return out;
+            if (r < res[c].length) for (let p = 0; p < precinctCount(c, r); p++) visit(r, c, p, l);
+      return;
   }
 
   // Position-driven orders. For each candidate grid position (x, y), a
@@ -174,7 +185,7 @@ export function packetOrder(h: MainHeader, tileIndex: number, progression: Progr
     if (r >= res[c].length) return;
     const p = precinctAt(c, r, x, y);
     if (p < 0) return;
-    for (let l = 0; l < layers; l++) out.push({ r, c, p, l });
+    for (let l = 0; l < layers; l++) visit(r, c, p, l);
   };
 
   if (progression === "RPCL") {
@@ -187,5 +198,4 @@ export function packetOrder(h: MainHeader, tileIndex: number, progression: Progr
     for (let c = 0; c < ncomp; c++)
       for (const [x, y] of positions([c])) for (let r = 0; r < res[c].length; r++) emit(c, r, x, y);
   }
-  return out;
 }

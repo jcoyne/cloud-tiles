@@ -30,7 +30,7 @@ describe.each(FILES)("%s", (name) => {
     const plan = img.plan(d, { x, y, w, h });
     await src.ensure(plan.ranges);
     const cs = plan.build(src.readCached);
-    const got = decodeRGBA(cs, d, plan.region.x, plan.region.y, plan.region.w, plan.region.h);
+    const got = decodeRGBA(cs, plan.reduction, plan.region.x, plan.region.y, plan.region.w, plan.region.h);
     const want = decodeRGBA(readFileSync(fixture(name)), d, x, y, w, h);
     expect([got.width, got.height]).toEqual([w, h]);
     expect(maxDiff(got.data, want.data)).toBe(0);

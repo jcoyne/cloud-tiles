@@ -12,6 +12,18 @@ if [[ "${1:-}" != "--no-simd" ]]; then
 fi
 
 cd "$here"
+
+# Vendored j2k at a pinned commit with our patches applied.
+J2K_REV=6298caec8d53e81d47795d86a2719d2d86b3dfb4
+vendor="$here/vendor/j2k"
+if [[ ! -d "$vendor/.git" ]]; then
+  git clone --quiet https://github.com/frames-sg/j2k.git "$vendor"
+fi
+if [[ "$(git -C "$vendor" rev-parse HEAD)" != "$J2K_REV" || -z "$(git -C "$vendor" status --porcelain)" ]]; then
+  git -C "$vendor" checkout --quiet --force "$J2K_REV"
+  for p in "$here"/patches/*.patch; do git -C "$vendor" apply "$p"; done
+fi
+
 cargo build --release --target wasm32-unknown-unknown
 wasm-bindgen --target web --out-dir "$out" --out-name j2k \
   "$here/target/wasm32-unknown-unknown/release/cloud_tiles_wasm.wasm"
