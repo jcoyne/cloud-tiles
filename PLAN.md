@@ -60,27 +60,28 @@ Two ways to access data, chosen from what the header says:
 ---
 
 ## Phase 0: Project setup
-- [ ] `git init`, add `.gitignore` (node_modules, target, dist, test images)
+- [x] `git init`, add `.gitignore` (node_modules, target, dist, test images)
 - [ ] Vite + TypeScript scaffold (`web/`), with ESLint/Prettier and Vitest
-- [ ] Rust workspace for the WASM wrapper (`wasm/`), depending on `j2k` as a git dependency pinned to a commit
-- [ ] Install `wasm32-unknown-unknown` target, `wasm-bindgen-cli` / `wasm-pack`
+- [x] Rust workspace for the WASM wrapper (`wasm/`), depending on `j2k` as a git dependency pinned to a commit
+- [x] Install `wasm32-unknown-unknown` target, `wasm-bindgen-cli` / `wasm-pack`
 - [ ] Local static server for test files that supports Range and CORS (Vite's static serving, or a small `http-server` config). Confirm it returns `206`.
 
 ## Phase 1: Compile j2k to WASM (spike, highest risk)
-- [ ] `cargo build -p j2k --target wasm32-unknown-unknown --no-default-features`, and fix or patch anything that won't build
-- [ ] Confirm `j2k-native` builds without `parallel`, and check `moxcms` on wasm32
-- [ ] Look for platform-specific SIMD (`std::arch` x86/aarch64) and make sure there is a scalar or `wasm32 simd128` fallback
-- [ ] Thin `wasm-bindgen` wrapper crate exposing:
-  - [ ] `inspect(bytes) -> {width, height, components, levels, tiles, ...}`
-  - [ ] `decode_scaled(bytes, downscale) -> RGBA`
-  - [ ] `decode_region_scaled(bytes, x, y, w, h, downscale) -> RGBA`
-  - [ ] `decode_tile_scaled(bytes, tile_index, downscale) -> RGBA`
+- [x] `cargo build -p j2k --target wasm32-unknown-unknown`: **builds unmodified** (rayon is compiled in, but we force `CpuDecodeParallelism::Serial`)
+- [x] Confirm `j2k-native` and `moxcms` build on wasm32
+- [x] Look for platform-specific SIMD (`std::arch` x86/aarch64) and make sure there is a scalar or `wasm32 simd128` fallback
+- [x] Thin `wasm-bindgen` wrapper crate (`wasm/src/lib.rs`, on top of `j2k_native::Image::new_with_reduction`, because `j2k::Downscale` stops at 1/8) exposing:
+  - [x] `inspect(bytes) -> {width, height, tileCount, bitDepth, hasAlpha}`
+  - [x] `decode(bytes, reduction, x, y, w, h) -> RGBA` (any number of levels; region in reduced pixels; w=0 means the whole image)
+  - [x] Tiles are decoded by rewriting SIZ to a single-tile image in the codestream synthesizer, so there is no separate tile entry point
 - [ ] Reuse one `J2kScratchPool` per worker, so we don't allocate for every tile
-- [ ] Decode a complete small JP2 in Node and in a browser, and compare the pixels with the native `j2k` output
-- [ ] Measure `.wasm` size (gzip/brotli), and try `opt-level="s"` + `wasm-opt`
-- [ ] Benchmark: decode time for a 512² and 1024² tile, JPEG 2000 vs HTJ2K, with and without `+simd128`
+- [x] Decode in Node and compare with `kdu_expand` (`wasm/test/compare-kakadu.mjs`, `wasm/test/region.mjs`): max |diff| = 1, about 59 dB PSNR, for the archive file, tiled J2K and tiled HTJ2K
+- [ ] Decode in a browser (see Phase 6)
+- [x] Measure `.wasm` size: 544 KB after `wasm-opt -O3`, about 206 KB gzipped
+- [x] Benchmark (Node 26, M-series, single thread, 1024² at full resolution): archive untiled J2K 225–257 ms, tiled-1024 J2K 108–115 ms, tiled-1024 HTJ2K 79–84 ms, 512² HTJ2K 34 ms. `+simd128` is about 5–12% faster and is now the default
+- [ ] Note: a full-resolution decode of the whole 24 MP image fails the j2k decode budget ("image is too large"). That's fine because we only decode tiles
 - [ ] Optional: threaded build (`wasm-bindgen-rayon`, which needs COOP/COEP headers). Only do this if single-threaded workers aren't fast enough.
-- [ ] **Go/no-go:** if j2k doesn't build or is too slow, fall back to OpenJPEG (openjpegjs) or OpenJPH for HTJ2K
+- [x] **Go/no-go: GO.** j2k works as the decoder. if j2k doesn't build or is too slow, fall back to OpenJPEG (openjpegjs) or OpenJPH for HTJ2K
 
 ## Phase 2: Header parser and index (TypeScript)
 - [ ] JP2/JPH box parser: `jP  `, `ftyp`, `jp2h` (`ihdr`, `colr`, `pclr`, `cmap`, `res `), `uuid`, `jp2c`, XL boxes, and `jp2c` length 0 (meaning "to end of file")

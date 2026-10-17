@@ -1,0 +1,21 @@
+[package]
+name = "cloud-tiles-wasm"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99.0"
+publish = false
+description = "wasm-bindgen wrapper around the j2k JPEG 2000 / HTJ2K decoder"
+license = "MIT OR Apache-2.0"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+j2k-native = { git = "https://github.com/frames-sg/j2k", rev = "6298caec8d53e81d47795d86a2719d2d86b3dfb4" }
+wasm-bindgen = "=0.2.129"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"

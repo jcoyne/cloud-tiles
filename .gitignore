@@ -1,0 +1,9 @@
+node_modules/
+dist/
+target/
+web/src/wasm-pkg/
+web/public/wasm/
+testdata/*
+!testdata/README.md
+.DS_Store
+*.log
