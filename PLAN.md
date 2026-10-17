@@ -61,10 +61,10 @@ Two ways to access data, chosen from what the header says:
 
 ## Phase 0: Project setup
 - [x] `git init`, add `.gitignore` (node_modules, target, dist, test images)
-- [ ] Vite + TypeScript scaffold (`web/`), with ESLint/Prettier and Vitest
+- [x] Vite + TypeScript scaffold (`web/`) with Vitest (ESLint/Prettier not added yet)
 - [x] Rust workspace for the WASM wrapper (`wasm/`), depending on `j2k` as a git dependency pinned to a commit
 - [x] Install `wasm32-unknown-unknown` target, `wasm-bindgen-cli` / `wasm-pack`
-- [ ] Local static server for test files that supports Range and CORS (Vite's static serving, or a small `http-server` config). Confirm it returns `206`.
+- [x] Local static server for test files: a Vite middleware serves `testdata/` at `/testdata/` with `206` Range responses
 
 ## Phase 1: Compile j2k to WASM (spike, highest risk)
 - [x] `cargo build -p j2k --target wasm32-unknown-unknown`: **builds unmodified** (rayon is compiled in, but we force `CpuDecodeParallelism::Serial`)
@@ -74,66 +74,66 @@ Two ways to access data, chosen from what the header says:
   - [x] `inspect(bytes) -> {width, height, tileCount, bitDepth, hasAlpha}`
   - [x] `decode(bytes, reduction, x, y, w, h) -> RGBA` (any number of levels; region in reduced pixels; w=0 means the whole image)
   - [x] Tiles are decoded by rewriting SIZ to a single-tile image in the codestream synthesizer, so there is no separate tile entry point
-- [ ] Reuse one `J2kScratchPool` per worker, so we don't allocate for every tile
+- [ ] ~~Reuse one `J2kScratchPool` per worker~~ (we call `j2k_native` directly; its `DecoderContext` is tied to the input buffer's lifetime, so one is created per decode)
 - [x] Decode in Node and compare with `kdu_expand` (`wasm/test/compare-kakadu.mjs`, `wasm/test/region.mjs`): max |diff| = 1, about 59 dB PSNR, for the archive file, tiled J2K and tiled HTJ2K
-- [ ] Decode in a browser (see Phase 6)
+- [x] Decode in a browser (Chromium via Playwright, `web/scripts/screenshot.mjs`)
 - [x] Measure `.wasm` size: 544 KB after `wasm-opt -O3`, about 206 KB gzipped
 - [x] Benchmark (Node 26, M-series, single thread, 1024² at full resolution): archive untiled J2K 225–257 ms, tiled-1024 J2K 108–115 ms, tiled-1024 HTJ2K 79–84 ms, 512² HTJ2K 34 ms. `+simd128` is about 5–12% faster and is now the default
-- [ ] Note: a full-resolution decode of the whole 24 MP image fails the j2k decode budget ("image is too large"). That's fine because we only decode tiles
+- [x] Note: a full-resolution decode of the whole 24 MP image fails the j2k decode budget ("image is too large"). That's fine because we only decode tiles
 - [ ] Optional: threaded build (`wasm-bindgen-rayon`, which needs COOP/COEP headers). Only do this if single-threaded workers aren't fast enough.
 - [x] **Go/no-go: GO.** j2k works as the decoder. if j2k doesn't build or is too slow, fall back to OpenJPEG (openjpegjs) or OpenJPH for HTJ2K
 
 ## Phase 2: Header parser and index (TypeScript)
-- [ ] JP2/JPH box parser: `jP  `, `ftyp`, `jp2h` (`ihdr`, `colr`, `pclr`, `cmap`, `res `), `uuid`, `jp2c`, XL boxes, and `jp2c` length 0 (meaning "to end of file")
-- [ ] Main header parser: SIZ, CAP, COD/COC, QCD/QCC, TLM, PLM, PPM, COM
-- [ ] Progressive header fetch: start with 64 KB, and extend if the main header or first tile-part header (PLT) runs past it
-- [ ] Tile-part header parser: SOT, PLT, PPT, and COD/QCD overrides
-- [ ] Build a **packet index**: for each (tile, resolution, component, layer, precinct), its byte offset and length. Use TLM for tile-parts and PLT for packets, following the progression order (start with RPCL, add others later)
-- [ ] Precinct geometry: compute precinct and code-block bounds per resolution, accounting for image/tile offsets (the spec's ceil-division rules)
-- [ ] Map a region to packets: given a full-resolution rect and a resolution r, return the packets needed for levels 0..r
-- [ ] Unit tests against Kakadu-produced fixtures, checked against `kdu_expand -record` / `j2k inspect` output
+- [x] JP2/JPH box parser (`web/src/jp2/boxes.ts`): signature, XL boxes, `jp2c` length 0. `jp2h` is not interpreted yet; we decode raw codestreams
+- [x] Main header parser (`web/src/jp2/codestream.ts`): SIZ, COD/COC, TLM, plus detecting POC/PPM as unsupported (QCD/CAP/COM are passed through untouched)
+- [x] Progressive header fetch: start with 64 KB, and extend if the main header or first tile-part header (PLT) runs past it
+- [x] Tile-part header parser: SOT, PLT. Files with PPT/POC or COD/COC in tile-part headers fall back to tile access
+- [x] Build a **packet index** from PLT for single-tile files (`Jp2Image.buildPacketIndex`), checked against the packet count the geometry predicts
+- [x] Precinct geometry: compute precinct and code-block bounds per resolution, accounting for image/tile offsets (the spec's ceil-division rules)
+- [x] Map a region to packets: given a full-resolution rect and a resolution r, return the packets needed for levels 0..r
+- [x] Unit tests against Kakadu-produced fixtures (`web/test/*.test.ts`)
 - [ ] Optional: export the index as a sidecar JSON/binary file for files whose PLT is very large
 
 ## Phase 3: Fetching and caching
-- [ ] `RangeFetcher`: `fetch` with `Range: bytes=a-b`, check for `206` and `Content-Range`, use `If-Range` with the ETag to detect the file changing underneath us
-- [ ] Coalesce adjacent or nearby ranges (configurable gap, for example 4–16 KB) into one request
-- [ ] Limit concurrency and cancel with `AbortController` when OpenSeadragon drops a tile
-- [ ] LRU byte cache keyed by range, with a memory cap. Low resolutions are shared by every view, so keep those cached.
-- [ ] Count requests and bytes, for the HUD and the benchmarks
+- [x] `HttpRangeSource` (`web/src/net/range-source.ts`): checks `206`/`Content-Range` and falls back to caching the whole body on `200`. It compares ETags rather than sending `If-Range`, because `If-Range` would force a CORS preflight; see `docs/stacks-recommendations.md`
+- [x] Coalesce adjacent or nearby ranges (configurable gap, for example 4–16 KB) into one request
+- [x] Limit concurrency (6). Aborted tiles skip decoding, but shared fetches are deliberately not cancelled
+- [x] LRU span cache with a byte budget (256 MB), deduplicating in-flight requests
+- [x] Count requests and bytes, for the HUD and the benchmarks
 
 ## Phase 4: Codestream synthesis
-- [ ] Tiled path: main header (without TLM/PLM) + SOT/tile-part(s) for the tile, with Psot fixed up and truncated to resolution r + EOC
-- [ ] Untiled path: main header + a single SOT, with PLT removed + the packet stream where packets we don't need become `0x00` + EOC
-- [ ] Handle SOP/EPH markers if present (then the empty packet needs `FF91` and `FF92` around it)
+- [x] Tiled path: main header (without TLM/PLM) + SIZ cropped to the needed tiles (renumbered) + tile-parts up to resolution r + EOC. One codestream can cover several JP2 tiles
+- [x] Untiled path: main header + a single SOT, with PLT removed + the packet stream where packets we don't need become `0x00` + EOC. Packets of resolutions above r are cut off in RPCL/RLCP
+- [x] Handle SOP/EPH markers if present (then the empty packet needs `FF91` and `FF92` around it)
 - [ ] Handle quality layers: optionally fetch only the first N layers for a fast first view, then refine
-- [ ] Tests: compare the synthesized region decode with a crop of the full decode (bit-exact for lossless, within tolerance for lossy)
+- [x] Tests: synthesized region decode vs full-file region decode is **bit-exact** for all 6 fixtures × 7 regions (`web/test/decode.test.ts`)
 
 ## Phase 5: Decode workers
-- [ ] Worker pool sized to `navigator.hardwareConcurrency - 1`, each with its own WASM instance
-- [ ] Pass bytes in and RGBA out as transferable `ArrayBuffer`s, with no copies
-- [ ] Queue tiles by priority (closest to the viewport centre and coarsest level first), and drop jobs that are no longer needed
-- [ ] Turn the RGBA into an `ImageBitmap` in the worker if supported, otherwise into `ImageData`
+- [x] Worker pool sized to `hardwareConcurrency - 1` (max 8), one WASM instance each
+- [x] Codestream is transferred to the worker and the decoded `ImageBitmap` is transferred back
+- [ ] Queue tiles by priority (FIFO for now; OSD already requests in priority order, and queued jobs are dropped on abort)
+- [x] Turn the RGBA into an `ImageBitmap` in the worker, falling back to a canvas `context2d`
 
 ## Phase 6: OpenSeadragon integration
-- [ ] Custom `TileSource`: `width/height` from SIZ, `tileSize` from the JP2 tile size (or a virtual 512/1024 tile for untiled files), `maxLevel` from the decomposition levels
-- [ ] Map OpenSeadragon levels to JP2 resolution levels, and pick a `Downscale` (j2k only reduces by powers of two, which matches)
-- [ ] Use `downloadTileStart` / `downloadTileAbort` with the fetcher + worker, and render through `context2d` / `ImageBitmap`
-- [ ] Handle edge tiles, odd sizes and non-zero image offsets
-- [ ] Debug HUD: requests, bytes fetched vs file size, decode time per tile, cache hit rate
-- [ ] URL parameter `?src=` to open any CORS-enabled JP2
+- [x] Custom `TileSource` (`web/src/viewer/tile-source.ts`): the OSD tile size is the JP2 tile size (256–1024), or 512 for untiled files
+- [x] Map OpenSeadragon levels to JP2 resolution reductions (any number of levels, not just j2k's `Downscale`)
+- [x] Use `downloadTileStart` / `downloadTileAbort` with the fetcher + worker, and render through `context2d` / `ImageBitmap`
+- [ ] Handle edge tiles and odd sizes (done and tested); non-zero image offsets are untested
+- [x] Debug HUD: file structure, open cost, requests, bytes fetched vs file size, average decode time (no cache hit rate yet)
+- [x] URL parameter `?src=` to open any CORS-enabled JP2. **Works against stacks.stanford.edu today with no server changes**
 
 ## Phase 7: Test images (Kakadu)
 - [ ] Get a large source image (at least 30k×30k, for example a pathology slide or aerial mosaic) and keep the Stanford file as the "existing" baseline
 - [ ] Encode a matrix of variants, all with `ORGgen_plt=yes ORGgen_tlm=… ORGtparts=R Corder=RPCL`:
-  - [ ] Classic J2K, tiled `Stiles={1024,1024}`
-  - [ ] Classic J2K, tiled `Stiles={512,512}`
-  - [ ] Classic J2K, untiled with `Cprecincts={256,256}` (like the archive files)
-  - [ ] HTJ2K (`Cmodes=HT`), tiled 1024 and 512, written as `.jph`
-  - [ ] Lossless (`Creversible=yes`) vs lossy (`Qstep` / `-rate`) for each
+  - [x] Classic J2K, tiled `Stiles={1024,1024}`
+  - [x] Classic J2K, tiled `Stiles={512,512}`
+  - [x] Classic J2K, untiled with `Cprecincts={256,256}` (like the archive files)
+  - [x] HTJ2K (`Cmodes=HT`), tiled 1024 and 512, written as `.jph`
+  - [x] Lossless HTJ2K tiled 1024 (`-t1024-lossless-ht.jph`); lossy variants use `-rate 1.5`
   - [ ] Varying `Clayers` (1 vs 7) and `Clevels` (enough that the smallest level fits in one tile)
 - [ ] Re-encode the Stanford JP2's source (or transcode the JP2 itself) into the best layout, so we can compare the same image both ways
-- [ ] Script it (`scripts/encode-variants.sh`) and record the exact `kdu_compress` command lines
-- [ ] Check each output with `j2k inspect` and our parser (that TLM/PLT are present and the progression order is right)
+- [x] Script it (`scripts/encode-variants.sh`) and record the exact `kdu_compress` command lines
+- [x] Check each output with our parser (tests assert TLM, resolution tile-parts and the access mode)
 
 ## Phase 8: Benchmark — existing JP2s vs optimized layout
 - [ ] Repeatable test: open the viewer, load the overview, zoom to 3 fixed points at 3 levels, pan, recorded with Playwright
@@ -147,13 +147,15 @@ Two ways to access data, chosen from what the header says:
 - [ ] Write up the difference in `docs/benchmark.md`, including a recommended "cloud-optimized JP2" encoding profile
 
 ## Phase 9: Hardening and stretch goals
-- [ ] Other progression orders (LRCP, RLCP, PCRL, CPRL) when indexing packets
+- [x] Other progression orders (LRCP, RLCP, PCRL, CPRL) when indexing packets (implemented in `packetOrder`, but only RPCL is covered by fixtures)
 - [ ] Files without PLT: fall back to scanning packet headers, or fetching whole resolution prefixes
 - [ ] 16-bit and greyscale images, palette (`pclr`/`cmap`), ICC colour via `moxcms`
 - [ ] Progressive quality: show the first layers right away, then refine
 - [ ] Optional IIIF Image API facade (`info.json` generated in the client) so existing IIIF viewers can use it
 - [ ] Packaging: publish the TileSource + worker + wasm as an npm package
 - [ ] CI: build the Rust/WASM and web code, run unit tests, and run a Playwright smoke test on a small fixture
+
+- [x] Stacks server recommendations: `docs/stacks-recommendations.md`
 
 ## Open questions / risks
 - Does j2k build for wasm32 as-is, and does it decode the synthesized codestreams (with empty packets) correctly?
