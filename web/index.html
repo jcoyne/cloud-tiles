@@ -9,15 +9,25 @@
   <body>
     <header>
       <form id="open">
-        <input id="src" name="src" type="url" placeholder="URL of a JP2 / JPH file (CORS + Range)" required />
+        <input id="src" name="src" type="url" placeholder="URL of a JP2 / JPH file (CORS + Range) or IIIF manifest" required />
         <select id="samples" aria-label="Samples"></select>
+        <select id="canvases" aria-label="Canvas" hidden></select>
         <button type="submit">Open</button>
+        <button type="button" id="show-manifest" class="secondary" disabled>IIIF manifest</button>
       </form>
     </header>
     <main>
       <div id="viewer"></div>
       <aside id="hud" aria-live="polite"></aside>
     </main>
+    <dialog id="manifest-dialog" aria-labelledby="manifest-title">
+      <div class="dialog-head">
+        <h2 id="manifest-title">IIIF Presentation 3 manifest</h2>
+        <button type="button" id="copy-manifest" class="secondary">Copy</button>
+        <form method="dialog"><button aria-label="Close">Close</button></form>
+      </div>
+      <pre id="manifest-json"></pre>
+    </dialog>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

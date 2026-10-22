@@ -1,0 +1,73 @@
+{
+  "@context": "http://iiif.io/api/presentation/3/context.json",
+  "id": "https://stacks.stanford.edu/file/bb002wb0348/PC0170_s3_Army_2014-09-13_122754_0529.jp2/iiif/manifest",
+  "type": "Manifest",
+  "label": {
+    "none": [
+      "PC0170_s3_Army_2014-09-13_122754_0529.jp2"
+    ]
+  },
+  "thumbnail": [
+    {
+      "id": "https://stacks.stanford.edu/image/iiif/bb002wb0348%2FPC0170_s3_Army_2014-09-13_122754_0529/full/!400,400/0/default.jpg",
+      "type": "Image",
+      "format": "image/jpeg",
+      "service": [
+        {
+          "@id": "https://stacks.stanford.edu/image/iiif/bb002wb0348%2FPC0170_s3_Army_2014-09-13_122754_0529",
+          "@type": "ImageService2",
+          "profile": "level2"
+        }
+      ]
+    }
+  ],
+  "items": [
+    {
+      "id": "https://stacks.stanford.edu/file/bb002wb0348/PC0170_s3_Army_2014-09-13_122754_0529.jp2/iiif/canvas/1",
+      "type": "Canvas",
+      "width": 6000,
+      "height": 4000,
+      "items": [
+        {
+          "id": "https://stacks.stanford.edu/file/bb002wb0348/PC0170_s3_Army_2014-09-13_122754_0529.jp2/iiif/canvas/1/page/1",
+          "type": "AnnotationPage",
+          "items": [
+            {
+              "id": "https://stacks.stanford.edu/file/bb002wb0348/PC0170_s3_Army_2014-09-13_122754_0529.jp2/iiif/canvas/1/page/1/annotation/1",
+              "type": "Annotation",
+              "motivation": "painting",
+              "target": "https://stacks.stanford.edu/file/bb002wb0348/PC0170_s3_Army_2014-09-13_122754_0529.jp2/iiif/canvas/1",
+              "body": {
+                "id": "https://stacks.stanford.edu/file/bb002wb0348/PC0170_s3_Army_2014-09-13_122754_0529.jp2",
+                "type": "Image",
+                "format": "image/jp2",
+                "width": 6000,
+                "height": 4000,
+                "service": [
+                  {
+                    "id": "https://stacks.stanford.edu/file/bb002wb0348/PC0170_s3_Army_2014-09-13_122754_0529.jp2",
+                    "type": "https://github.com/jcoyne/cloud-tiles/ns/RangeJP2",
+                    "profile": "https://github.com/jcoyne/cloud-tiles/ns/RangeJP2/plt",
+                    "indexBytes": 41384,
+                    "fileSize": 4541049,
+                    "tileSize": [
+                      6000,
+                      4000
+                    ],
+                    "levels": 5,
+                    "layers": 7
+                  },
+                  {
+                    "@id": "https://stacks.stanford.edu/image/iiif/bb002wb0348%2FPC0170_s3_Army_2014-09-13_122754_0529",
+                    "@type": "ImageService2",
+                    "profile": "level2"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -33,6 +33,11 @@ cd web && npm install
 npm run dev                   # http://localhost:5173/?src=<url of a CORS-enabled JP2>
 ```
 
+`?manifest=<url of a IIIF Presentation 3 manifest>` opens a manifest instead,
+reading each canvas by byte range when its image is a JP2 and falling back to
+the IIIF Image API otherwise. The **IIIF manifest** button shows the manifest
+in use, or one generated for the open file. See [docs/iiif.md](docs/iiif.md).
+
 Test fixtures go in `testdata/`; see [testdata/README.md](testdata/README.md).
 
 ```bash

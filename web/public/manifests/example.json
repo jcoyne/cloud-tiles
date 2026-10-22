@@ -1,0 +1,171 @@
+{
+  "@context": "http://iiif.io/api/presentation/3/context.json",
+  "id": "/manifests/example.json",
+  "type": "Manifest",
+  "label": {
+    "en": [
+      "cloud-tiles example: four ways to reach a JP2"
+    ]
+  },
+  "summary": {
+    "en": [
+      "Canvas 1: bare image/jp2 body. Canvas 2: image/jph body with a RangeJP2 service. Canvas 3: Image API only (Stanford), mapped to the stacks file. Canvas 4: RangeJP2 plus an Image API 2 fallback for viewers that don't read byte ranges. Relative ids resolve against this manifest's URL so it works on the dev server; real manifests use absolute ids."
+    ]
+  },
+  "items": [
+    {
+      "id": "/manifests/example.json/canvas/1",
+      "type": "Canvas",
+      "label": {
+        "en": [
+          "Local archive JP2 (untiled, PLT)"
+        ]
+      },
+      "width": 6000,
+      "height": 4000,
+      "items": [
+        {
+          "id": "/manifests/example.json/canvas/1/page/1",
+          "type": "AnnotationPage",
+          "items": [
+            {
+              "id": "/manifests/example.json/canvas/1/page/1/annotation/1",
+              "type": "Annotation",
+              "motivation": "painting",
+              "target": "/manifests/example.json/canvas/1",
+              "body": {
+                "id": "/testdata/stanford-army.jp2",
+                "type": "Image",
+                "format": "image/jp2",
+                "width": 6000,
+                "height": 4000
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "/manifests/example.json/canvas/2",
+      "type": "Canvas",
+      "label": {
+        "en": [
+          "Local tiled 1024 HTJ2K"
+        ]
+      },
+      "width": 6000,
+      "height": 4000,
+      "items": [
+        {
+          "id": "/manifests/example.json/canvas/2/page/1",
+          "type": "AnnotationPage",
+          "items": [
+            {
+              "id": "/manifests/example.json/canvas/2/page/1/annotation/1",
+              "type": "Annotation",
+              "motivation": "painting",
+              "target": "/manifests/example.json/canvas/2",
+              "body": {
+                "id": "/testdata/stanford-army-t1024-ht.jph",
+                "type": "Image",
+                "format": "image/jph",
+                "width": 6000,
+                "height": 4000,
+                "service": [
+                  {
+                    "id": "/testdata/stanford-army-t1024-ht.jph",
+                    "type": "https://github.com/jcoyne/cloud-tiles/ns/RangeJP2",
+                    "profile": "https://github.com/jcoyne/cloud-tiles/ns/RangeJP2/tlm"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "/manifests/example.json/canvas/3",
+      "type": "Canvas",
+      "label": {
+        "en": [
+          "Stanford stacks via Image API only"
+        ]
+      },
+      "width": 6000,
+      "height": 4000,
+      "items": [
+        {
+          "id": "/manifests/example.json/canvas/3/page/1",
+          "type": "AnnotationPage",
+          "items": [
+            {
+              "id": "/manifests/example.json/canvas/3/page/1/annotation/1",
+              "type": "Annotation",
+              "motivation": "painting",
+              "target": "/manifests/example.json/canvas/3",
+              "body": {
+                "id": "https://stacks.stanford.edu/image/iiif/bb002wb0348%2FPC0170_s3_Army_2014-09-13_122754_0529/full/full/0/default.jpg",
+                "type": "Image",
+                "format": "image/jpeg",
+                "width": 6000,
+                "height": 4000,
+                "service": [
+                  {
+                    "id": "https://stacks.stanford.edu/image/iiif/bb002wb0348%2FPC0170_s3_Army_2014-09-13_122754_0529",
+                    "type": "ImageService2",
+                    "profile": "level2"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "/manifests/example.json/canvas/4",
+      "type": "Canvas",
+      "label": {
+        "en": [
+          "Stanford stacks 1.2 GB piano roll"
+        ]
+      },
+      "width": 4096,
+      "height": 252840,
+      "items": [
+        {
+          "id": "/manifests/example.json/canvas/4/page/1",
+          "type": "AnnotationPage",
+          "items": [
+            {
+              "id": "/manifests/example.json/canvas/4/page/1/annotation/1",
+              "type": "Annotation",
+              "motivation": "painting",
+              "target": "/manifests/example.json/canvas/4",
+              "body": {
+                "id": "https://stacks.stanford.edu/file/kp368nb7707/kp368nb7707_0001.jp2",
+                "type": "Image",
+                "format": "image/jp2",
+                "width": 4096,
+                "height": 252840,
+                "service": [
+                  {
+                    "id": "https://stacks.stanford.edu/file/kp368nb7707/kp368nb7707_0001.jp2",
+                    "type": "https://github.com/jcoyne/cloud-tiles/ns/RangeJP2",
+                    "profile": "https://github.com/jcoyne/cloud-tiles/ns/RangeJP2/plt"
+                  },
+                  {
+                    "@id": "https://stacks.stanford.edu/image/iiif/kp368nb7707%2Fkp368nb7707_0001",
+                    "@type": "ImageService2",
+                    "profile": "level2"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
