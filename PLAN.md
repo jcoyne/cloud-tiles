@@ -164,9 +164,9 @@ Two ways to access data, chosen from what the header says:
 - [x] **Virtual tiles** for untiled files: crop to a window around the region, aligned to every kept resolution's precinct grid, with a wavelet-support margin of 2^(levels+3)
 - [x] Matches `kdu_expand -region` within ±1 at reductions 0–5, including regions at window boundaries and at the end of the image (`web/test/kakadu.test.ts`)
 - [x] ~~Vendored j2k with a one-line patch raising the decode budget to 1.5 GiB~~ (dropped after re-pinning to j2k main `d849d62a`). Full-resolution windows in this file are 4096×4096 to 4096×8192 because of its 128-px precincts at 1/32 resolution (4096 rows), peaking at about 430 MB natively
-- [x] Large decodes (> 8 M samples) go to one dedicated worker, so only one WASM instance grows
+- [x] ~~Large decodes (> 8 M samples) go to one dedicated worker, so only one WASM instance grows~~ (removed after the j2k re-pin; all workers take any job)
 - [x] Upstream j2k, region-sized memory: covered by PRs [#129](https://github.com/frames-sg/j2k/pull/129) (coefficients sized to the ROI) and [#131](https://github.com/frames-sg/j2k/pull/131) (build/parse only the needed precincts), with [#133](https://github.com/frames-sg/j2k/issues/133) proposing line-based decode. With #131, our windowed piano-roll decodes fit the stock 512 MB budget at **9–50 MB peak RSS**, down from 222–1,043 MB. Both merged; re-pinned to `d849d62a` and dropped the budget patch. In WASM (Node, simd128) the memory high-water mark over the test regions fell from 694 MB to 124 MB (33 MB for tile-sized decodes), and decodes are 3–25% faster. The `.wasm` grew from 205 KB to 263 KB gzipped
-- [ ] Remove the dedicated large worker now that every decode fits the stock budget
+- [x] Remove the dedicated large worker now that every decode fits the stock budget
 - [ ] Enable the streamed region IDWT (#182) once j2k exposes `set_line_region_idwt` publicly
 - [x] Upstream j2k, [#134](https://github.com/frames-sg/j2k/issues/134): `MAX_J2K_IMAGE_DIMENSION` (60,000 px) rejected the 4096×252840 roll at SIZ parse time. Lifted by #173, so virtual-tile windowing is now an optimization (smaller synthesized codestreams), not a requirement
 - [ ] Viewer: a larger OSD tile at the finest level for untiled files, to amortize the 4096-wide window per decode

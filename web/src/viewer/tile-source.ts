@@ -81,7 +81,7 @@ export function createJp2TileSource(
         await source.ensure(plan.ranges);
         abort.signal.throwIfAborted();
         const codestream = plan.build(source.readCached);
-        const out = await pool.decode(codestream, plan.reduction, plan.region, plan.pixels, abort.signal);
+        const out = await pool.decode(codestream, plan.reduction, plan.region, abort.signal);
         stats.tiles++;
         stats.decodeMs += out.ms;
         onTile?.(stats);

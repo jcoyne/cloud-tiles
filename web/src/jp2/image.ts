@@ -44,8 +44,6 @@ export interface DecodePlan {
   build(read: (start: number, end: number) => Uint8Array): Uint8Array;
   /** Region to decode within the synthesized image at `reduction`. */
   region: Region;
-  /** Samples per component the decoder works on (drives its memory use). */
-  pixels: number;
 }
 
 interface TilePart {
@@ -349,7 +347,6 @@ export class Jp2Image {
       ranges: coalesce(parts.map((p) => [p.offset, p.offset + p.length])),
       build,
       region: { x: want.x0 - ceilDiv(siz.xosiz, kk), y: want.y0 - ceilDiv(siz.yosiz, kk), w: region.w, h: region.h },
-      pixels: (siz.xsiz - siz.xosiz) * (siz.ysiz - siz.yosiz),
     };
   }
 
@@ -489,7 +486,6 @@ export class Jp2Image {
       ranges: coalesce(ranges, 0),
       build,
       region: { x: want.x0 - win.x0, y: want.y0 - win.y0, w: region.w, h: region.h },
-      pixels: (win.x1 - win.x0) * (win.y1 - win.y0),
     };
   }
 }
