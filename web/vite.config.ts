@@ -51,6 +51,8 @@ function rangeServer(): Plugin {
 }
 
 export default defineConfig({
+  // Relative asset URLs, so the build can be hosted under any path.
+  base: "./",
   plugins: [rangeServer()],
   worker: { format: "es" },
   test: {

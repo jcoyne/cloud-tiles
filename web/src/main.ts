@@ -5,10 +5,13 @@ import { Jp2Image } from "./jp2/image";
 import { HttpRangeSource } from "./net/range-source";
 import { createJp2TileSource, type TileStats } from "./viewer/tile-source";
 
-const SAMPLES: [label: string, url: string][] = [
+const REMOTE_SAMPLES: [label: string, url: string][] = [
   ["Stanford stacks: archive JP2 (remote)", "https://stacks.stanford.edu/file/bb002wb0348/PC0170_s3_Army_2014-09-13_122754_0529.jp2"],
   ["Stanford stacks: 1.2 GB piano roll (remote)", "https://stacks.stanford.edu/file/kp368nb7707/kp368nb7707_0001.jp2"],
   ["IIIF: Stanford PURL manifest (remote)", "https://purl.stanford.edu/bb002wb0348/iiif3/manifest"],
+];
+// Served from ../testdata by the dev server only (vite.config.ts).
+const LOCAL_SAMPLES: [label: string, url: string][] = [
   ["IIIF: example manifest (local + remote)", "/manifests/example.json"],
   ["Local: archive JP2 (untiled, PLT)", "/testdata/stanford-army.jp2"],
   ["Local: tiled 1024 HTJ2K", "/testdata/stanford-army-t1024-ht.jph"],
@@ -16,6 +19,7 @@ const SAMPLES: [label: string, url: string][] = [
   ["Local: tiled 1024 J2K", "/testdata/stanford-army-t1024-j2k.jp2"],
   ["Local: untiled 256 precincts J2K", "/testdata/stanford-army-p256-j2k.jp2"],
 ];
+const SAMPLES = import.meta.env.DEV ? [...REMOTE_SAMPLES, ...LOCAL_SAMPLES] : REMOTE_SAMPLES;
 
 const form = document.querySelector<HTMLFormElement>("#open")!;
 const input = document.querySelector<HTMLInputElement>("#src")!;
