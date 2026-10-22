@@ -13,15 +13,15 @@ fi
 
 cd "$here"
 
-# Vendored j2k at a pinned commit with our patches applied.
-J2K_REV=6298caec8d53e81d47795d86a2719d2d86b3dfb4
+# Vendored j2k at a pinned commit.
+J2K_REV=d849d62a67d26b8fd85289f8b2bdb7f171ab8592
 vendor="$here/vendor/j2k"
 if [[ ! -d "$vendor/.git" ]]; then
   git clone --quiet https://github.com/frames-sg/j2k.git "$vendor"
 fi
-if [[ "$(git -C "$vendor" rev-parse HEAD)" != "$J2K_REV" || -z "$(git -C "$vendor" status --porcelain)" ]]; then
+if [[ "$(git -C "$vendor" rev-parse HEAD)" != "$J2K_REV" || -n "$(git -C "$vendor" status --porcelain)" ]]; then
+  git -C "$vendor" cat-file -e "$J2K_REV^{commit}" 2>/dev/null || git -C "$vendor" fetch --quiet origin
   git -C "$vendor" checkout --quiet --force "$J2K_REV"
-  for p in "$here"/patches/*.patch; do git -C "$vendor" apply "$p"; done
 fi
 
 cargo build --release --target wasm32-unknown-unknown

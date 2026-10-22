@@ -11,7 +11,7 @@ license = "MIT OR Apache-2.0"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-# frames-sg/j2k at 6298caec8d53e81d47795d86a2719d2d86b3dfb4 plus patches/*.patch,
+# frames-sg/j2k at d849d62a67d26b8fd85289f8b2bdb7f171ab8592,
 # checked out into vendor/ by build.sh.
 j2k-native = { path = "vendor/j2k/crates/j2k-native" }
 wasm-bindgen = "=0.2.129"
