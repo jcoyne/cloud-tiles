@@ -14,7 +14,7 @@ fi
 cd "$here"
 
 # Vendored j2k at a pinned commit.
-J2K_REV=d849d62a67d26b8fd85289f8b2bdb7f171ab8592
+J2K_REV=30848511e46cf51d6158ec799aca7f2ef6fe82be
 vendor="$here/vendor/j2k"
 if [[ ! -d "$vendor/.git" ]]; then
   git clone --quiet https://github.com/frames-sg/j2k.git "$vendor"
