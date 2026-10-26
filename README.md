@@ -17,6 +17,29 @@ runs in Web Workers. Display uses OpenSeadragon. See [PLAN.md](PLAN.md).
 
 Both paths are tested to be bit-exact against decoding the whole file.
 
+## Compared with an IIIF image server
+
+| | cloud-tiles (byte ranges) | IIIF Image API server |
+|---|---|---|
+| **Infrastructure** | ✅ Static file hosting: S3, a CDN, or any server that honours `Range` with CORS | ❌ An image server (Cantaloupe, IIPImage, …) with CPU and a tile cache to run and scale |
+| **Server cost per view** | ✅ Bandwidth only; decoding happens in the browser | ❌ The server decodes and re-encodes every tile that isn't cached |
+| **Image fidelity** | ✅ The original codestream is decoded, within ±1 of Kakadu | ❌ Tiles are re-encoded, usually as JPEG, a second lossy generation |
+| **Bytes per view** | ⚠️ The file's own packets; in our tests the first view fetches 15–30% of the file. More for lossless masters, and files without PLT or TLM have to be downloaded in full | ⚠️ Re-encoded tiles at the quality the server picks; usually small |
+| **Client requirements** | ❌ A modern browser with WebAssembly and Web Workers; decoding uses the client's CPU (about 65–85 ms per tile) | ✅ Anything that can display a JPEG |
+| **Viewer support** | ❌ Only this viewer reads `RangeJP2`; Mirador, UV and others fall back to the Image API (see [docs/iiif.md](docs/iiif.md)) | ✅ Every IIIF viewer, plus a large ecosystem of tools |
+| **File requirements** | ❌ The file must carry TLM (tiled) or PLT (untiled); see [Encoding](#encoding) | ✅ Any image the server can read |
+| **Sharing a specific region** | ❌ No region URL. A link opens the whole image (`?src=`, `?manifest=`, `&canvas=`), and there's no image to embed elsewhere | ✅ `/{region}/{size}/{rotation}/{quality}.{format}` is a shareable, embeddable image |
+| **Derivatives** (thumbnails, crops, rotation, greyscale, format conversion) | ❌ None; they have to be pre-generated | ✅ Any combination, on demand by URL |
+| **Restricting dimensions** | ❌ Anyone who can view can read the full-resolution file. A size cap means publishing a separate, reduced file | ✅ `maxWidth`, `maxHeight` and `maxArea` in `info.json` cap what the server returns |
+| **Access control** | ⚠️ All-or-nothing on the file, through IIIF Auth 2.0 and credentialed CORS | ✅ Per request: by size, region or user, with watermarking if needed |
+| **Downloading the master** | ⚠️ Anyone who can view can also download the original | ✅ The original file stays on the server unless you publish it |
+| **Availability** | ✅ Fails only when the file host does; a CDN absorbs traffic spikes | ⚠️ Uncached tiles depend on the image server keeping up |
+| **Opening an image** | ⚠️ A few header requests before the first tile (3–5 requests, 90–275 KB in our samples) | ✅ One `info.json`, then tiles |
+
+The two approaches can be combined: the same JP2 can be served by range to this
+viewer and by an image server for derivatives, region links, size limits and
+other viewers. A manifest can advertise both (see [docs/iiif.md](docs/iiif.md)).
+
 ## Requirements
 
 - Rust via rustup (`brew install rustup`); `wasm/rust-toolchain.toml` pins 1.99.0 + `wasm32-unknown-unknown`
