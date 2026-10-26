@@ -8,7 +8,7 @@ import { createJp2TileSource, type TileStats } from "./viewer/tile-source";
 const REMOTE_SAMPLES: [label: string, url: string][] = [
   ["Stanford stacks: archive JP2 (remote)", "https://stacks.stanford.edu/file/bb002wb0348/PC0170_s3_Army_2014-09-13_122754_0529.jp2"],
   ["Stanford stacks: 1.2 GB piano roll (remote)", "https://stacks.stanford.edu/file/kp368nb7707/kp368nb7707_0001.jp2"],
-  ["IIIF: Stanford PURL manifest (remote)", "https://purl.stanford.edu/bb002wb0348/iiif3/manifest"],
+  ["IIIF: Stanford PURL manifest (remote)", "https://purl.stanford.edu/nh329xv9953/iiif3/manifest"],
 ];
 // Served from ../testdata by the dev server only (vite.config.ts).
 const LOCAL_SAMPLES: [label: string, url: string][] = [
