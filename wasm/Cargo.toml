@@ -11,9 +11,11 @@ license = "MIT OR Apache-2.0"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-# frames-sg/j2k at 30848511e46cf51d6158ec799aca7f2ef6fe82be,
+# frames-sg/j2k at 8becfd9f7bbae861abe35842caaad3376a438aad,
 # checked out into vendor/ by build.sh.
-j2k-native = { path = "vendor/j2k/crates/j2k-native" }
+# Without `parallel` (rayon): we always decode serially, and it adds ~80 KB gzipped.
+# Without `profile`: a browser can't set J2K_PROFILE_STAGES, and it adds ~16 KB gzipped.
+j2k-native = { path = "vendor/j2k/crates/j2k-native", default-features = false, features = ["std", "simd"] }
 wasm-bindgen = "=0.2.129"
 
 [profile.release]

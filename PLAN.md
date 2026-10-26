@@ -144,7 +144,7 @@ Two ways to access data, chosen from what the header says:
   - [ ] Average and p95 decode time per tile (J2K vs HTJ2K)
   - [ ] File size, and PSNR compared with the original
 - [ ] Run against Stanford stacks (Apache, HTTP/2), local, and an object store / CDN (S3 + CloudFront or similar)
-- [ ] Write up the difference in `docs/benchmark.md`, including a recommended "cloud-optimized JP2" encoding profile
+- [ ] Write up the difference in `docs/benchmark.md`, including a recommended "cloud-optimized JP2" encoding profile. A local, layout-only first pass is in `docs/encoding-recommendations.md`
 
 ## Phase 9: Hardening and stretch goals
 - [x] Other progression orders (LRCP, RLCP, PCRL, CPRL) when indexing packets (implemented in `packetOrder`, but only RPCL is covered by fixtures)

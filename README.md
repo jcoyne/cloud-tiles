@@ -52,3 +52,9 @@ Any server that honours `Range` and sends `Access-Control-Allow-Origin` plus
 `Access-Control-Expose-Headers: Content-Range`. See
 [docs/stacks-recommendations.md](docs/stacks-recommendations.md) for suggested
 improvements to stacks.stanford.edu.
+
+## Encoding
+
+Untiled JP2s need PLT (`ORGgen_plt=yes`), or the viewer has to download the
+whole file. See [docs/encoding-recommendations.md](docs/encoding-recommendations.md)
+for measured `kdu_compress` layouts and suggested changes to SDR's encoder.
