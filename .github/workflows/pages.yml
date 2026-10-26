@@ -1,0 +1,75 @@
+# Build the viewer (WASM decoder + web bundle) and publish it to GitHub Pages.
+name: Deploy to Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time; a newer push supersedes a queued one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      # The toolchain comes from wasm/rust-toolchain.toml when cargo first runs.
+      - uses: Swatinem/rust-cache@v2.9.3
+        with:
+          workspaces: wasm
+
+      # Must match the wasm-bindgen crate version in wasm/Cargo.toml.
+      - uses: taiki-e/install-action@v2.87.32
+        with:
+          tool: wasm-bindgen@0.2.129
+
+      - name: Install wasm-opt (binaryen 133)
+        run: |
+          v=version_133
+          f=binaryen-$v-x86_64-linux.tar.gz
+          cd "$RUNNER_TEMP"
+          curl -fsSLO "https://github.com/WebAssembly/binaryen/releases/download/$v/$f"
+          curl -fsSLO "https://github.com/WebAssembly/binaryen/releases/download/$v/$f.sha256"
+          sha256sum -c "$f.sha256"
+          tar xzf "$f"
+          echo "$RUNNER_TEMP/binaryen-$v/bin" >> "$GITHUB_PATH"
+
+      - name: Build WASM decoder
+        run: wasm/build.sh
+
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build web bundle
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+
+      - uses: actions/configure-pages@v6.0.0
+
+      - uses: actions/upload-pages-artifact@v5.0.0
+        with:
+          path: web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5.0.1
